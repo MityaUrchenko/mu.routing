@@ -91,7 +91,7 @@ class MUrouting extends CBitrixComponent {
                 $this->iblockIds[$segment] = (int)$this->arParams[$item['iblock']];
             }
             if ($item['property']) {
-                $this->linkPropNames[$segment] = $this->arParams[$item['property']];
+                $this->linkProps[$segment] = $this->arParams[$item['property']];
             }
         }
     }
@@ -102,31 +102,35 @@ class MUrouting extends CBitrixComponent {
 
     private function validateRoute(): void {
         $this->initDefaultVariables();
-        if (empty($this->routeSegments)) return;
 
-        $propertyName = '';
-        $currentElementID = null;
-        $parentElementID = null;
-        $optFilter = [];
+        if (empty($this->routeSegments)) return;
+        if (count($this->routeSegments) > count($this->urlStructure)) $this->return404();
+
+        $linkProp = null;
+        $elementID = null;
+        $parentID = null;
         $parentIblockID = $this->iblockIds['base'];
 
         foreach ($this->routeSegments as $key => $segment) {
-            if ($this->isSection($segment)) {
-                $propertyName = $this->linkPropNames[$segment];
-                $parentIblockID = $this->iblockIds[$segment];
+            if ($key%2) {
                 $this->validateSegment($key, $segment);
+                $linkProp = $this->linkProps[$segment];
+                $parentIblockID = $this->iblockIds[$segment];
+                $this->updateFilter($linkProp, $parentID);
             } else {
-                if ($propertyName && $parentElementID) {
-                    $optFilter = [$propertyName . '.VALUE' => $parentElementID];
-                }
-                $currentElementID = $this->getElementId($parentIblockID, $segment, $optFilter);
-                $this->validateElement($currentElementID);
-                $parentElementID = $currentElementID;
+                $optFilter = $this->makeFilterArray($linkProp, $parentID);
+                $elementID = $this->getElementId($parentIblockID, $segment, $optFilter);
+                $this->validateElement($elementID);
+                $parentID = $elementID;
             }
         }
-        $this->updateFilter($propertyName, $parentElementID);
+
         $this->updateTemplates($key, $segment);
         $this->updateVariables($parentIblockID, $segment);
+    }
+
+    private function makeFilterArray(?string $prop, ?int $id): array {
+        return $prop && $id ? [$prop . '.VALUE' => $id] : [];
     }
 
     private function validateSegment(int $index, string $segment): void {
